@@ -2,6 +2,8 @@
 
 ## Utilización de datos de pasajeros del titanic para predecir su supervivenvia
 
+En este trabajo se pretende crear un modelo que sea capaz de ser entrenado con un set de datos sobre pasajeros del naufragio del Titanic y estimar de la forma más precisa posible su supervivencia.
+
 ## Autor
 
 David Poggio Moro
