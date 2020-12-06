@@ -19,6 +19,10 @@ El origen del data set puede consultarse en la siguiente dirección:
 
 [https://www.kaggle.com/c/titanic/data](https://www.kaggle.com/c/titanic/data)
 
+## Informe
+
+El informe con el código y los resultados obtenidos se puede consultar en el fichero [PRA2TipologiaDPM.html](https://github.com/DavidPoggio/TitanicModel/blob/main/PRA2TipologiaDPM.html). También podemos consultar la [versión en pdf](https://github.com/DavidPoggio/TitanicModel/blob/main/PRA2TipologiaDPM.pdf)
+
 ## Licencia
 
 El contenido de este proyecto esta licencia bajo la [Creative Commons Zero](https://creativecommons.org/publicdomain/zero/1.0/deed.es_ES).
