@@ -12,13 +12,15 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Descripción del Dataset.
+# Descripción de la práctica y el dataset.
 
 ## Introducción.
 
 Este informe forma parte del entregable de la Práctica 2: "Limpieza y análisis de datos" de la asignatura "Tipología y ciclo de vida de los datos" del Máster de Data Science de la UOC.
 
 Se puede encontrar toda la información y código, incluído este informe, en el repositorio de GitHub [DavidPoggio/TitanicModel](https://github.com/DavidPoggio/TitanicModel)
+
+## Descripción del dataset
 
 Para esta práctica utilizaremos el dataset titulado "Titanic: Machine Learning from Disaster" de Kaggle, que podemos encontrar en este enlace: https://www.kaggle.com/c/titanic/data
 
