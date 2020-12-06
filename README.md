@@ -2,6 +2,8 @@
 
 ## Utilización de datos de pasajeros del titanic para predecir su supervivenvia
 
+En este trabajo se pretende crear un modelo que sea capaz de ser entrenado con un set de datos sobre pasajeros del naufragio del Titanic y estimar de la forma más precisa posible su supervivencia.
+
 ## Autor
 
 David Poggio Moro
@@ -18,6 +20,10 @@ David Poggio Moro
 El origen del data set puede consultarse en la siguiente dirección:
 
 [https://www.kaggle.com/c/titanic/data](https://www.kaggle.com/c/titanic/data)
+
+## Informe
+
+El informe con el código y los resultados obtenidos se puede consultar en el fichero [PRA2TipologiaDPM.html](https://github.com/DavidPoggio/TitanicModel/blob/main/PRA2TipologiaDPM.html). También podemos consultar la [versión en pdf](https://github.com/DavidPoggio/TitanicModel/blob/main/PRA2TipologiaDPM.pdf)
 
 ## Licencia
 
