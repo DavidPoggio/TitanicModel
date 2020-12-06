@@ -1,0 +1,306 @@
+---
+title: "Tipología y ciclo de vida de los datos - Práctica 2: Limpieza y análisis de datos"
+author: "David Poggio Moro"
+date: "6/12/2020"
+output:
+  html_document: 
+    df_print: paged
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Descripción del Dataset.
+
+Para esta práctica utilizaremos el dataset titulado "Titanic: Machine Learning from Disaster" de Kaggle, que podemos encontrar en este enlace: https://www.kaggle.com/c/titanic/data
+
+Los campos de los que disponemos en este juego de datos son los siguientes:
+
+* PassengerId: Identificador único por pasajero.
+* Survived: Indica si el pasajero sobrevivió (1) o no (0).
+* Pclass: Clase del billete del pasajero. Primera (1), segunda (2) o tercera (3).
+* Name: Nombre del pasajero.
+* Sex: Género del pasajero.
+* Age: Edad del pasajero.
+* SibSp: Número de hermanos o cónyujes a bordo (movimiento horizontal en el árbol genealógico).
+* Parch: Número de padres o hijos a bordo (movimiento vertical en el árbol genealógico).
+* Ticket: Número de billete.
+* Fare: Tarifa del billete.
+* Cabin: Número de camarote.
+* Embarked: Lugar de embarque. Cherbourg (C) , Queenstown (Q) o Southampton (S).
+
+Los datos está repartidos en dos ficheros:
+
+* Train.csv: Fichero de entrenamiento que incluye todos los atributos mencionados antes.
+* Test.csv: Fichero de prueba que incluye todos los atributos menos "Survived", ya que es el que queremos estimar.
+
+El objetivo es llegar a la creación de un conjunto de reglas que permitan estimar, en base a los atributos de los que disponemos, si un individuo sobreviviría o no.
+
+# Integración y selección de los datos de interés a analizar.
+
+Empezaremos cargando los datos de los ficheros en unos dataframes:
+
+```{r, warning=FALSE, message=FALSE}
+df_train <- read.csv(".\\Titanic\\train.csv")
+df_test <- read.csv(".\\Titanic\\test.csv")
+```
+
+Una vez cargados los ficheros, hacemos una vista preliminar descriptiva de los datos:
+
+```{r, warning=FALSE, message=FALSE}
+summary(df_train)
+```
+
+Como paso previo a la limpieza tratremos de reducir la dimensionalidad de nuestros datos. Para ello proponemos las siguientes acciones:
+
+* Combinar los atributos "SibSp" y "Parch" en un único atributo "Familiares" que nos muestre si la persona viajaba con familiares o no.
+* Descartar el atributo del "Name" puesto que no nos aportará nada porque podemos identificar a los pasajeros con su "PassengerID".
+* Por último, eliminaremos también los atributos de "Ticket" y "Cabin", ya que podrían contribuir a un posible overfitting del modelo.
+
+```{r, warning=FALSE, message=FALSE}
+require(dplyr)
+df_train$Familiares <- ifelse(df_train$SibSp > 0 | df_train$Parch>0,"Si","No")
+df_test$Familiares <- ifelse(df_test$SibSp > 0 | df_test$Parch>0,"Si","No")
+df_train_clean <- select(df_train,c("PassengerId","Age","Sex","Pclass","Survived","Fare","Embarked","Familiares"))
+
+```
+
+También convertiremos la columna "Survived" en una variable categórica:
+
+```{r, warning=FALSE, message=FALSE}
+df_train_clean$Survived <- factor(df_train_clean$Survived)
+levels(df_train_clean$Survived)=c("No","Si")
+```
+
+
+# Limpieza de los datos
+
+## Gestión de valores perdidos y vacíos
+
+Buscamos los valores perdidos de nuestro dataset por columnas:
+
+```{r, warning=FALSE, message=FALSE}
+sapply(df_train_clean, function(x) sum(is.na(x)))
+```
+
+Vemos que tenemos valores perdidos en la edad. Este dato nos es relevante para la creación de reglas en nuestro modelo por lo que no debemos eliminar los 177 registros porque es un alto porcentaje de las muestras de nuestro set de entrenamiento.En vez de esto, para no introducir ruido, reemplazaremos estos valores perdidos con la mediana ya que es un estimador robuesto para el ajuste de la edad.
+
+```{r, warning=FALSE, message=FALSE}
+df_train_clean$Age[is.na(df_train_clean$Age)] <- median(df_train_clean$Age, na.rm=TRUE)
+```
+
+Aprovechando que estamos operando con la columna edad, añadiremos una nueva que nos distinga entre mayores y menores de edad.
+
+```{r, warning=FALSE, message=FALSE}
+df_train_clean$Adulto <- ifelse(df_train_clean$Age < 18, "Menor", "Adulto")
+df_test$Adulto <- ifelse(df_test$Age < 18, "Menor", "Adulto")
+```
+
+Buscamos ahora valores vacíos:
+
+```{r, warning=FALSE, message=FALSE}
+colSums(df_train_clean=="")
+```
+
+Podemos ver que tenemos dos valores vacíos en el campo "Embarked". En este caso es un porcentaje ínfimo de los registros que tenemos por lo que podemos descartarlos directamente.
+
+```{r, warning=FALSE, message=FALSE}
+df_train_clean <- subset(df_train_clean,Embarked!="")
+colSums(df_train_clean=="")
+```
+
+
+## Identificación y tratamiento de valores extremos
+
+Representaremos mediante un boxplot las variables cuantitativas
+
+```{r, warning=FALSE, message=FALSE}
+boxplot(df_train_clean$Age)
+boxplot(df_train_clean$Fare)
+```
+
+Viendo los diagramas de caja, estableceremos unos criterios para evitar que los outliers puedan afectar a las reglas del modelo:
+
+* La edad podrá ser cómo máximo 60 años.
+* El precio del billete será como máximo de 150 dólares.
+
+```{r, warning=FALSE, message=FALSE}
+df_train_clean <- subset(df_train_clean, Age <=60 & Fare <= 150)
+boxplot(df_train_clean$Age)
+boxplot(df_train_clean$Fare)
+```
+
+# Análisis de los datos
+
+## Planificación del análisis
+
+Vamos a buscar una relación entre la supervivencia de los pasajeros y el resto de atributos que disponemos. Para ello representaremos gráficamente algunos valores para intentar identificar estas correlaciones de forma intuitiva.
+
+```{r, warning=FALSE, message=FALSE}
+
+require(ggplot2)
+require(grid)
+require(gridExtra)
+
+grid.newpage()
+graficaClase<-ggplot(df_train_clean,aes(Pclass,fill=Survived))+geom_bar() +labs(x="Clase", y="Pasajeros")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("darkgrey","darkgreen"))+ggtitle("Supervivientes por clase")
+graficaEdad<-ggplot(df_train_clean,aes(Adulto,fill=Survived))+geom_bar() +labs(x="Edad", y="Pasajeros")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("darkgrey","darkgreen"))+ggtitle("Supervivientes por edad")
+graficaGenero<-ggplot(df_train_clean,aes(Sex,fill=Survived))+geom_bar() +labs(x="Género", y="Pasajeros")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("darkgrey","darkgreen"))+ggtitle("Supervivientes por género")
+graficaFamilia<-ggplot(df_train_clean,aes(Familiares,fill=Survived))+geom_bar() +labs(x="Viaja con familiares", y="Pasajeros")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("darkgrey","darkgreen"))+ggtitle("Supervivientes por acompañantes")
+grid.arrange(graficaClase,graficaEdad,graficaGenero,graficaFamilia,ncol=2)
+
+```
+
+A la luz de estas gráficas podemos intuir las siguientes posibles relaciones:
+
+* La clase y la proporción de supervivientes.
+* El sexo y la proporción de supervivientes.
+* La edad y la proporción de supervivientes.
+* Viajar con familiares y la proporción de supervivientes.
+
+Para aterrizar estas visualizaciones, obtenemos las tablas de contingencia ver las proporciones exactas.
+
+```{r, warning=FALSE, message=FALSE}
+tabla_Genero <- table(df_train_clean$Sex, df_train_clean$Survived)
+prop.table(tabla_Genero, margin = 1)
+```
+
+```{r, warning=FALSE, message=FALSE}
+tabla_Clase <- table(df_train_clean$Pclass, df_train_clean$Survived)
+prop.table(tabla_Clase, margin = 1)
+```
+
+```{r, warning=FALSE, message=FALSE}
+tabla_Adulto <- table(df_train_clean$Adulto, df_train_clean$Survived)
+prop.table(tabla_Adulto, margin = 1) 
+```
+
+```{r, warning=FALSE, message=FALSE}
+tabla_Familiares <- table(df_train_clean$Familiares, df_train_clean$Survived)
+prop.table(tabla_Familiares, margin = 1) 
+```
+
+## Comprobación de la normalidad y homogeneidad de la varianza
+
+Utilizaremos el test de Shapiro, donde planteamos un contraste de hipotesis para discernir si la distribución a analizar sigue una distribución normal. La hipotesis nula será que nos encontramos ante una distribución normal y la hipotesis alternativa por tanto será que no seguimos una distribución normal.
+
+Para esta prueba usaremos un nivel de significancia ($\alpha$) de 0.01.
+
+```{r, warning=FALSE, message=FALSE}
+shapiro.test(df_train_clean$Age)
+shapiro.test(df_train_clean$Fare)
+```
+
+Se puede observar que el p-valor que obtenemos en el resultado del test para la edad y el precio del billete es mucho menor que el nivel de significancia de 0.01, por lo que rechazamos la hipotesis nula en favor de la hipotesis alternativa: no se sigue una distribución normal, por lo que se deberán usar tests no paramétricos en el futuro.
+
+Respecto a la varianza, aplicaremois el test de Fligner:
+
+```{r, warning=FALSE, message=FALSE}
+fligner.test(Age ~ Survived, data=df_train_clean)
+fligner.test(Fare ~ Survived, data=df_train_clean)
+```
+
+Vemos que, por poco, podemos rechazar la hipóteis nula y asumir que nos encontramos ante un conjunto con varianza homogénea.
+
+## Aplicación de pruebas estadísticas para comparar grupos de datos
+
+A continuación utilizaremos el test de Wilcox para estudiar las posibles diferencias significativas en la varianza según la supervivencia para los atributos de los que disponemos. Esta será nuestra hipotesis nula.
+
+```{r, warning=FALSE, message=FALSE}
+wilcox.test(Age ~ Survived, data = df_train_clean)
+wilcox.test(Fare ~ Survived, data = df_train_clean)
+```
+Vemos que si mantenemos el nivel de significancia de 0.01 rechazamos la hipotesis nula. Por tanto, no existen diferencias significativas con respecto a la varianza en funcion de la edad de cara a analizar la superviencia del pasajero.
+
+Sin embargo, si parece existir una diferencia de varianza significativa para la supervivencia en función del precio del billete, por lo que aceptamos la hipotesis nula y asumimos una relación entre ambas.
+
+Aplicaremos también el test de Kruskal, que es similar al test de Wilcox pero admite más de dos grupos.
+
+```{r, warning=FALSE, message=FALSE}
+kruskal.test(Age ~ Survived, data = df_train_clean)
+kruskal.test(Fare ~ Survived, data = df_train_clean)
+```
+
+Tal y como esperabamos, los resultados coinciden con los proporcionados por el test de Wilcox.
+
+Por último, podemos realizar un test $\chi^2$ para encontrar diferencias significativas entre grupos de variables categóricas. En este caso, la hipotesis nula es que hay independencia entre los atributos, y la hipotesis alternativa es que existe una dependencia entre los atributos.
+
+```{r, warning=FALSE, message=FALSE}
+chisq.test(table(df_train_clean$Adulto,df_train_clean$Survived))
+chisq.test(table(df_train_clean$Familiares,df_train_clean$Survived))
+```
+
+Tenemos un p-valor menor que 0.01 en ambos casos por lo que rechazamos la hipotesis nula y por lo tanto tenemos evidencia de que existe una relación entre la supervivencia y ser menor/mayor de edad o viajar con familia.
+
+# Representación de los resultados a partir de tablas y gráficas.
+
+En apartados anteriores se realizó este análisis de tablas y gráficas. Por comodidad, volveremos a mostrarlas aquí:
+
+```{r, warning=FALSE, message=FALSE}
+prop.table(tabla_Genero, margin = 1)
+```
+
+```{r, warning=FALSE, message=FALSE}
+prop.table(tabla_Clase, margin = 1)
+```
+
+```{r, warning=FALSE, message=FALSE}
+prop.table(tabla_Adulto, margin = 1) 
+```
+
+```{r, warning=FALSE, message=FALSE}
+prop.table(tabla_Familiares, margin = 1) 
+```
+
+```{r, warning=FALSE, message=FALSE}
+grid.arrange(graficaClase,graficaEdad,graficaGenero,graficaFamilia,ncol=2)
+```
+
+
+# Resolución del problema
+
+Vistas estas correlaciones entre atributos y la supervivencia de pasajeros parece razonable buscar reglas que nos ayuden a modelar esta supervivencia.
+
+## Creación de los sets de entrenamiento y test
+
+Randomizamos los datos disponibles en el dataframe y utilizamos el conjunto de entrenamiento.
+
+```{r, warning=FALSE, message=FALSE}
+train_random <- df_train_clean[sample(nrow(df_train_clean)),]
+y <- train_random[,5] 
+X <- train_random[,c(3,4,9)] 
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+trainX<-X
+trainy<-y
+testX<-df_test[,c(2,4,13)] 
+```
+
+## Creación del arbol de decisión
+
+```{r, warning=FALSE, message=FALSE}
+modelo_supervivientes <- C50::C5.0(trainX, trainy,rules=TRUE )
+summary(modelo_supervivientes)
+```
+
+Tras el análisis del resumen del modelo vemos que solo con el género podríamos estimar correctamente el 98% de los resultados.
+
+## Validación del modelo
+
+En este caso no podemos validar los resultados con el conjunto de prueba ya que en teoría Kaggle ofrece estos datos como una competición. Suponiendo que tuviéramos este conjunto real de test para validar los datos, podríamos hacerlo como se muestra a continuación:
+
+```{r, warning=FALSE, message=FALSE}
+require(gmodels)
+modelo_predicho <- predict(modelo_supervivientes, testX, type="class")
+#CrossTable(testy, predicted_model,prop.chisq  = FALSE, prop.c = FALSE, prop.r =FALSE,dnn = c('Reality', 'Prediction'))
+
+# Extraemos nuestra predicción
+
+df_prediccion <- cbind(df_test,modelo_predicho)
+write.csv2(df_prediccion,"./resultado.csv")
+```
+
